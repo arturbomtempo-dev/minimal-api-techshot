@@ -11,10 +11,13 @@ public static class DatabaseConfiguration
 
         builder.Services.AddDbContext<TuneTrailDbContext>(options =>
         {
-            options.UseNpgsql(connectionString, npgsqlOptions =>
-            {
-                npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-            });
+            options.UseNpgsql(
+                connectionString,
+                npgsqlOptions =>
+                {
+                    npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
+                }
+            );
         });
 
         return builder.Services;

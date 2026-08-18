@@ -8,9 +8,7 @@ namespace TuneTrail.Api.IoC.Context;
 public class TuneTrailDbContext : DbContext
 {
     public TuneTrailDbContext(DbContextOptions<TuneTrailDbContext> options)
-        : base(options)
-    {
-    }
+        : base(options) { }
 
     public DbSet<Music> Music { get; set; } = null!;
 

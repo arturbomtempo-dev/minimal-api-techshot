@@ -1,5 +1,5 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/TuneTrail.Api/TuneTrail.Api.csproj" />
-  </Folder>
+    <Folder Name="/src/">
+        <Project Path="src/TuneTrail.Api/TuneTrail.Api.csproj" />
+    </Folder>
 </Solution>

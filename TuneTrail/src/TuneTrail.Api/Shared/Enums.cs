@@ -10,7 +10,7 @@ public enum MusicGenre
     Classical = 6,
     Mpb = 7,
     Metal = 8,
-    Other = 99
+    Other = 99,
 }
 
 public enum ListeningStatus
@@ -18,5 +18,5 @@ public enum ListeningStatus
     WantToListen = 1,
     Listening = 2,
     Favorite = 3,
-    Archived = 4
+    Archived = 4,
 }

@@ -1,6 +1,6 @@
-using TuneTrail.Api.Data.Database.Entities.Base;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TuneTrail.Api.Data.Database.Entities.Base;
 
 namespace TuneTrail.Api.Data.Database.ModelMapping.Base;
 
