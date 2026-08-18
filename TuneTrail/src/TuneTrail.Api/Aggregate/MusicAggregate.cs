@@ -162,7 +162,6 @@ public class MusicAggregate : IMusicAggregate
             if (music is null)
                 return ResultSchema.Fail(ResultError.MusicNotFound);
 
-            // Soft delete: the row stays in the database for auditing.
             music.Deleted = true;
 
             _dbContext.Update(music);
