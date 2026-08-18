@@ -1,4 +1,8 @@
+using TuneTrail.Api.IoC.Configs;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.AddDatabaseConfiguration();
 
 var app = builder.Build();
 
