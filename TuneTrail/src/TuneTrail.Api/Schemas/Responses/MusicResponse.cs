@@ -1,4 +1,4 @@
-using TuneTrail.API.Shared;
+using TuneTrail.Api.Shared;
 
 namespace TuneTrail.Api.Schemas.Responses;
 

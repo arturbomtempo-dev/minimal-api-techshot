@@ -1,4 +1,4 @@
-namespace TuneTrail.API.Shared;
+namespace TuneTrail.Api.Shared;
 
 public static class Constants
 {

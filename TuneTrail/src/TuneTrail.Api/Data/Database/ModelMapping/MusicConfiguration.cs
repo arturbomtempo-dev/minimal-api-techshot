@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TuneTrail.Api.Data.Database.Entities;
 using TuneTrail.Api.Data.Database.ModelMapping.Base;
-using static TuneTrail.API.Shared.Constants;
+using static TuneTrail.Api.Shared.Constants;
 
 namespace TuneTrail.Api.Data.Database.ModelMapping;
 

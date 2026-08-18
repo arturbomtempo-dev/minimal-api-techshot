@@ -1,5 +1,5 @@
 using TuneTrail.Api.Data.Database.Entities.Base;
-using TuneTrail.API.Shared;
+using TuneTrail.Api.Shared;
 
 namespace TuneTrail.Api.Data.Database.Entities;
 
