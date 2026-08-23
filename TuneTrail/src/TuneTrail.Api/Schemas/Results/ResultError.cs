@@ -57,4 +57,13 @@ public readonly struct ResultError
 
     public static ResultError ErrorOnDeletingMusic(string message) =>
         new($"Error deleting music: {message}", "E400101");
+
+    /// <summary>
+    /// Error codes that the HTTP layer needs to compare against
+    /// in order to choose the right status code.
+    /// </summary>
+    public static class ResultErrorCodes
+    {
+        public const string MusicNotFound = "E300101";
+    }
 }
