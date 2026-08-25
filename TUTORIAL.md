@@ -44,11 +44,14 @@ Este documento é autocontido: se você não assistiu à palestra, consegue segu
 
 ### Pré-requisitos
 
-| Ferramenta             | Como verificar                   |
-| ---------------------- | -------------------------------- |
-| SDK do .NET 9          | `dotnet --list-sdks`             |
-| Docker Desktop rodando | `docker --version` e `docker ps` |
-| CLI do EF Core         | `dotnet ef --version`            |
+| Ferramenta             | Como verificar                       |
+| ---------------------- | ------------------------------------ |
+| SDK do .NET 10         | `dotnet --list-sdks`                 |
+| Runtime do .NET 9      | `dotnet --list-runtimes`             |
+| Docker Desktop rodando | `docker --version` e `docker ps`     |
+| CLI do EF Core         | `dotnet ef --version`                |
+
+O `global.json` trava o **SDK do .NET 10** para compilar, mas o projeto tem como alvo o `net9.0`, então o **runtime do .NET 9** também precisa estar instalado para a aplicação rodar.
 
 Se o `dotnet ef` não estiver instalado:
 
@@ -402,13 +405,13 @@ Estes três arquivos ficam em `TuneTrail/`, ao lado do `TuneTrail.slnx`.
 ```json
 {
   "sdk": {
-    "version": "9.0.316",
+    "version": "10.0.400",
     "rollForward": "latestFeature"
   }
 }
 ```
 
-Troque `9.0.316` pela versão que apareceu no seu `dotnet --list-sdks`.
+Troque `10.0.400` pela versão que apareceu no seu `dotnet --list-sdks`.
 
 **Por que isso importa:** sem o `global.json`, cada pessoa compila com o SDK que tiver instalado. Um colega com SDK diferente pode ter comportamento diferente, ou o CI compila com uma versão e a sua máquina com outra. O `rollForward: latestFeature` permite usar versões mais novas dentro do mesmo major, então não quebra em quem tem um SDK mais recente.
 
