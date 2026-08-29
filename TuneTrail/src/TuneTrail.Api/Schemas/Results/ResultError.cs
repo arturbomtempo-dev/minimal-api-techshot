@@ -49,21 +49,18 @@ public readonly struct ResultError
         "E300102"
     );
 
-    public static ResultError ErrorOnCreatingMusic(string message) =>
-        new($"Error creating music: {message}", "E100102");
+    public static readonly ResultError ErrorOnCreatingMusic = new(
+        "Error creating music.",
+        "E100102"
+    );
 
-    public static ResultError ErrorOnUpdatingMusic(string message) =>
-        new($"Error updating music: {message}", "E200101");
+    public static readonly ResultError ErrorOnUpdatingMusic = new(
+        "Error updating music.",
+        "E200101"
+    );
 
-    public static ResultError ErrorOnDeletingMusic(string message) =>
-        new($"Error deleting music: {message}", "E400101");
-}
-
-/// <summary>
-/// Error codes that the HTTP layer needs to compare against
-/// in order to choose the right status code.
-/// </summary>
-public static class ResultErrorCodes
-{
-    public const string MusicNotFound = "E300101";
+    public static readonly ResultError ErrorOnDeletingMusic = new(
+        "Error deleting music.",
+        "E400101"
+    );
 }

@@ -14,7 +14,7 @@ public class MusicModule : IRegisterModule
         var musicGroup = app.MapGroup("/musics").WithTags("Musics");
 
         musicGroup
-            .MapGet("/{id}", GetMusicById)
+            .MapGet("/{id:guid}", GetMusicById)
             .WithName("GetMusicById")
             .WithDescription("Gets a single music entry by its unique identifier.");
 
@@ -29,12 +29,12 @@ public class MusicModule : IRegisterModule
             .WithDescription("Creates a new music entry.");
 
         musicGroup
-            .MapPut("/{id}", UpdateMusic)
+            .MapPut("/{id:guid}", UpdateMusic)
             .WithName("UpdateMusic")
             .WithDescription("Updates an existing music entry.");
 
         musicGroup
-            .MapDelete("/{id}", DeleteMusic)
+            .MapDelete("/{id:guid}", DeleteMusic)
             .WithName("DeleteMusic")
             .WithDescription("Soft deletes an existing music entry.");
     }

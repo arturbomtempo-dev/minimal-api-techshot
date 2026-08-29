@@ -1211,29 +1211,26 @@ public readonly struct ResultError
         "E300102"
     );
 
-    public static ResultError ErrorOnCreatingMusic(string message) =>
-        new($"Error creating music: {message}", "E100102");
+    public static readonly ResultError ErrorOnCreatingMusic = new(
+        "Error creating music.",
+        "E100102"
+    );
 
-    public static ResultError ErrorOnUpdatingMusic(string message) =>
-        new($"Error updating music: {message}", "E200101");
+    public static readonly ResultError ErrorOnUpdatingMusic = new(
+        "Error updating music.",
+        "E200101"
+    );
 
-    public static ResultError ErrorOnDeletingMusic(string message) =>
-        new($"Error deleting music: {message}", "E400101");
-}
-
-/// <summary>
-/// Error codes that the HTTP layer needs to compare against
-/// in order to choose the right status code.
-/// </summary>
-public static class ResultErrorCodes
-{
-    public const string MusicNotFound = "E300101";
+    public static readonly ResultError ErrorOnDeletingMusic = new(
+        "Error deleting music.",
+        "E400101"
+    );
 }
 ```
 
 **Por que um código de erro estruturado?** Quando o suporte recebe um print de tela com "E300101", ele localiza a causa exata em segundos, sem depender da mensagem, que pode ser traduzida ou reescrita. O front-end também pode reagir programaticamente ao código, em vez de comparar strings de mensagem.
 
-> **Sobre a classe `ResultErrorCodes`:** ela existe como uma alternativa para o Module comparar códigos sem instanciar a struct. No `MusicModule` deste projeto (Passo 16), a comparação é feita direto com `ResultError.MusicNotFound.Code`, então essa classe fica disponível mas não é usada. As duas formas funcionam; se preferir manter só uma, escolha a que achar mais legível.
+> **Por que os erros de falha inesperada não recebem a mensagem da exception?** Seria tentador escrever `ErrorOnCreatingMusic(ex.Message)` e devolver o texto do erro para quem chamou. Não faça isso: a mensagem de uma exception do Npgsql pode expor nome de tabela, nome de constraint, trecho de SQL e até parte da connection string. O detalhe vai para o **log**, onde a sua equipe consegue ver; o cliente recebe uma mensagem estável e o código do erro, que é o suficiente para abrir um chamado. Repare no Passo 15: o `catch` faz `_logger.LogError(ex, ...)` **e** devolve um erro genérico. As duas coisas, sempre.
 
 ### `src/TuneTrail.Api/Schemas/Results/ResultSchema.cs`
 
@@ -1646,10 +1643,10 @@ public class MusicAggregate : IMusicAggregate
             var query = _dbContext.Set<Music>().AsNoTracking().Where(m => !m.Deleted);
 
             if (!string.IsNullOrWhiteSpace(title))
-                query = query.Where(m => m.Title.Contains(title));
+                query = query.Where(m => EF.Functions.ILike(m.Title, $"%{title}%"));
 
             if (!string.IsNullOrWhiteSpace(artist))
-                query = query.Where(m => m.Artist.Contains(artist));
+                query = query.Where(m => EF.Functions.ILike(m.Artist, $"%{artist}%"));
 
             var musics = await query.OrderByDescending(m => m.CreatedAt).ToListAsync();
 
@@ -1681,10 +1678,15 @@ public class MusicAggregate : IMusicAggregate
             if (errors.Count != 0)
                 return ResultSchema<MusicResponse>.Fail(errors[0]);
 
+            var title = request.Title.Trim();
+            var artist = request.Artist.Trim();
+
             var alreadyExists = await _dbContext
                 .Set<Music>()
                 .AnyAsync(m =>
-                    m.Title == request.Title && m.Artist == request.Artist && !m.Deleted
+                    EF.Functions.ILike(m.Title, title)
+                    && EF.Functions.ILike(m.Artist, artist)
+                    && !m.Deleted
                 );
 
             if (alreadyExists)
@@ -1692,7 +1694,7 @@ public class MusicAggregate : IMusicAggregate
 
             var music = BuildNewMusic(request);
 
-            await _dbContext.AddAsync(music);
+            _dbContext.Add(music);
             await _dbContext.SaveChangesAsync();
 
             var response = MusicResponseMapping.MapToResponse(music);
@@ -1704,7 +1706,7 @@ public class MusicAggregate : IMusicAggregate
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating music. Title: {Title}", request.Title);
-            return ResultSchema<MusicResponse>.Fail(ResultError.ErrorOnCreatingMusic(ex.Message));
+            return ResultSchema<MusicResponse>.Fail(ResultError.ErrorOnCreatingMusic);
         }
     }
 
@@ -1725,7 +1727,6 @@ public class MusicAggregate : IMusicAggregate
 
             UpdateMusicData(music, request);
 
-            _dbContext.Update(music);
             await _dbContext.SaveChangesAsync();
 
             var response = MusicResponseMapping.MapToResponse(music);
@@ -1737,7 +1738,7 @@ public class MusicAggregate : IMusicAggregate
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating music. Id: {MusicId}", musicId);
-            return ResultSchema<MusicResponse>.Fail(ResultError.ErrorOnUpdatingMusic(ex.Message));
+            return ResultSchema<MusicResponse>.Fail(ResultError.ErrorOnUpdatingMusic);
         }
     }
 
@@ -1754,7 +1755,6 @@ public class MusicAggregate : IMusicAggregate
 
             music.Deleted = true;
 
-            _dbContext.Update(music);
             await _dbContext.SaveChangesAsync();
 
             return ResultSchema.Success();
@@ -1762,7 +1762,7 @@ public class MusicAggregate : IMusicAggregate
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting music. Id: {MusicId}", musicId);
-            return ResultSchema.Fail(ResultError.ErrorOnDeletingMusic(ex.Message));
+            return ResultSchema.Fail(ResultError.ErrorOnDeletingMusic);
         }
     }
 
@@ -1817,21 +1817,38 @@ catch
 
 Essa previsibilidade é o que faz um projeto com dezenas de módulos ser navegável.
 
-### Sete detalhes que valem entender
+### Nove detalhes que valem entender
 
 **1. Injeção de dependência pelo construtor.** O `TuneTrailDbContext` e o `ILogger<MusicAggregate>` chegam prontos. Quem os cria é o container de injeção de dependência, que vamos configurar no Passo 17. Você nunca dá `new` em nada disso.
 
-**2. `AsNoTracking()` nas leituras.** Por padrão o EF guarda uma cópia de cada objeto lido para detectar mudanças. Em uma consulta só de leitura isso é desperdício de memória e CPU. Repare que ele **não** aparece no update e no delete, porque ali precisamos do tracking. É uma escolha consciente.
+**2. `AsNoTracking()` nas leituras.** Por padrão o EF guarda uma cópia de cada objeto lido para detectar mudanças. Em uma consulta só de leitura isso é desperdício de memória e CPU. Repare que ele **não** aparece no update e no delete, porque ali precisamos do tracking.
 
-**3. Filtro `!m.Deleted` em toda consulta.** É o soft delete em ação. Uma música excluída continua no banco, mas nunca aparece.
+**3. E, como há tracking, não existe `_dbContext.Update(...)`.** Este é o outro lado da moeda do item anterior, e é o erro mais comum de quem está começando com EF Core. No `UpdateMusic` e no `DeleteMusic` a entidade veio de uma consulta **sem** `AsNoTracking()`, então o `ChangeTracker` já está observando aquele objeto: basta alterar as propriedades e chamar `SaveChangesAsync()`. Chamar `Update()` ali não só é redundante, como **piora** o SQL, porque marca todas as propriedades como modificadas e o EF passa a escrever todas as colunas. Sem ele, com o log do Passo 9 ligado, um `PUT` que muda só a nota gera:
 
-**4. A query é montada por partes.** Os `if` adicionam `Where` condicionalmente e **nada vai ao banco ainda**, porque `IQueryable` é _lazy_. Só quando chamamos `ToListAsync()` o EF gera **uma única query SQL** com todos os filtros. Com o log de SQL ligado no Passo 9, chame `/musics?artist=Queen` e veja o `WHERE` aparecer no console.
+```sql
+UPDATE "Music" SET "PersonalRating" = @p0, "PlayCount" = @p1, "Status" = @p2, "UpdatedAt" = @p3
+WHERE "Id" = @p4;
+```
 
-**5. Regra de negócio que precisa do banco.** O `alreadyExists` do `CreateMusic` é o exemplo perfeito de validação que **não** poderia estar no Validator: ela precisa consultar o banco. Validador cuida do campo; Aggregate cuida da regra.
+Só as colunas que realmente mudaram. `Update()` existe para o caso oposto: uma entidade _desanexada_, que você recebeu pronta e o EF nunca viu.
 
-**6. `.Trim()` nos textos.** Normalização simples que evita `"Queen"` e `"Queen "` virarem registros diferentes.
+**4. `Add`, e não `AddAsync`.** `AddAsync` só é necessário para geradores de valor especiais que precisam ir ao banco, como o `HiLo`. Fora desse caso a versão assíncrona não traz benefício algum: o `Add` apenas marca a entidade no `ChangeTracker`, sem I/O. Quem vai ao banco é o `SaveChangesAsync()`.
 
-**7. Log estruturado.** Em `_logger.LogError(ex, "... Id: {MusicId}", musicId)` os valores vão como **campos separados**, não concatenados na string. Em uma ferramenta de observabilidade você consegue filtrar por `MusicId`. Concatenar com `$"..."` perde essa capacidade.
+**5. Filtro `!m.Deleted` em toda consulta.** É o soft delete em ação. Uma música excluída continua no banco, mas nunca aparece.
+
+**6. A query é montada por partes.** Os `if` adicionam `Where` condicionalmente e **nada vai ao banco ainda**, porque `IQueryable` é _lazy_. Só quando chamamos `ToListAsync()` o EF gera **uma única query SQL** com todos os filtros. Com o log de SQL ligado no Passo 9, chame `/musics?artist=Queen` e veja o `WHERE` aparecer no console.
+
+**7. `EF.Functions.ILike` no lugar de `Contains`.** O caminho intuitivo seria `m.Title.Contains(title)`, e ele funciona, mas o EF traduz isso para um `LIKE`, que no PostgreSQL é **sensível a maiúsculas e minúsculas**. Na prática, buscar por `?artist=queen` não acharia `"Queen"`, o que é um filtro de busca quebrado. O `ILike` é o operador `ILIKE` do Postgres, a versão que ignora a caixa:
+
+```sql
+WHERE m."Artist" ILIKE @__Format_1 AND NOT (m."Deleted")
+```
+
+Repare que `EF.Functions` é a porta de entrada para funções que só existem no banco: você ganha o recurso do Postgres sem escrever SQL na mão e sem perder a tipagem. O preço é o acoplamento ao provider, um trade-off consciente aqui.
+
+**8. Regra de negócio que precisa do banco, e a normalização que ela exige.** O `alreadyExists` do `CreateMusic` é o exemplo perfeito de validação que **não** poderia estar no Validator: ela precisa consultar o banco. Validador cuida do campo; Aggregate cuida da regra. Note que a checagem usa `.Trim()` e `ILike` **pelo mesmo motivo**: se ela comparasse com `==`, o texto `"  bohemian rhapsody "` passaria como música nova e você teria duas linhas para a mesma canção. A regra de unicidade tem que enxergar o dado do mesmo jeito que a busca enxerga.
+
+**9. Log estruturado.** Em `_logger.LogError(ex, "... Id: {MusicId}", musicId)` os valores vão como **campos separados**, não concatenados na string. Em uma ferramenta de observabilidade você consegue filtrar por `MusicId`. Concatenar com `$"..."` perde essa capacidade. E, como vimos no Passo 11, é aqui que o detalhe da exception fica: no log, nunca na resposta HTTP.
 
 **Rode a partir de `TuneTrail/`:**
 
@@ -1864,7 +1881,7 @@ public class MusicModule : IRegisterModule
         var musicGroup = app.MapGroup("/musics").WithTags("Musics");
 
         musicGroup
-            .MapGet("/{id}", GetMusicById)
+            .MapGet("/{id:guid}", GetMusicById)
             .WithName("GetMusicById")
             .WithDescription("Gets a single music entry by its unique identifier.");
 
@@ -1879,12 +1896,12 @@ public class MusicModule : IRegisterModule
             .WithDescription("Creates a new music entry.");
 
         musicGroup
-            .MapPut("/{id}", UpdateMusic)
+            .MapPut("/{id:guid}", UpdateMusic)
             .WithName("UpdateMusic")
             .WithDescription("Updates an existing music entry.");
 
         musicGroup
-            .MapDelete("/{id}", DeleteMusic)
+            .MapDelete("/{id:guid}", DeleteMusic)
             .WithName("DeleteMusic")
             .WithDescription("Soft deletes an existing music entry.");
     }
@@ -1981,12 +1998,14 @@ var musicGroup = app.MapGroup("/musics")    // prefixo comum a todas as rotas
     .WithTags("Musics");                    // agrupa no Swagger UI
 
 musicGroup
-    .MapGet("/{id}", GetMusicById)          // GET /musics/{id} chama o método GetMusicById
+    .MapGet("/{id:guid}", GetMusicById)     // GET /musics/{id} chama o método GetMusicById
     .WithName("GetMusicById")               // nome único, usado para gerar links
     .WithDescription("...");                // aparece no Swagger
 ```
 
 **`MapGroup` é o recurso que salva projetos grandes.** Sem ele, você repetiria `/musics` em cada rota. Com ele, o prefixo é declarado uma vez e, mais importante, você pode aplicar autenticação, rate limit ou filtros **ao grupo inteiro** com uma linha só.
+
+**E o `:guid` no fim do parâmetro?** É uma _route constraint_: ela diz ao roteamento que aquele segmento só casa se for um Guid válido. Sem ela, `GET /musics/abc` seria roteado até o handler, e só então o binding falharia com um `400` genérico e sem corpo. Com ela, a rota simplesmente não casa e a resposta é um `404`, que é a leitura correta: `/musics/abc` não é um recurso que exista nesta API. É a mesma ideia da tabela do Passo 13, "um `{id}` que não é Guid nem chega no handler" — o `:guid` é o que torna aquela frase verdadeira. De quebra, a constraint aparece no OpenAPI, então o Swagger já documenta o formato esperado.
 
 ### `TypedResults` e o tipo de retorno gigante
 
@@ -2306,6 +2325,23 @@ Confirme as suas portas em `src/TuneTrail.Api/Properties/launchSettings.json` ou
 
 Você deve ver os 5 endpoints agrupados sob a tag **Musics**, cada um com a sua descrição.
 
+**Um ajuste que vale fazer agora.** Os dois perfis têm `launchBrowser: true`, e no Passo 4 isso funcionava porque existia um `MapGet("/")` respondendo na raiz. Esse endpoint foi removido no Passo 18, então hoje o navegador abre em `/` e você recebe um 404 em branco toda vez que roda o projeto. Acrescente um `launchUrl` aos **dois** perfis do `launchSettings.json`:
+
+```json
+"http": {
+  "commandName": "Project",
+  "dotnetRunMessages": true,
+  "launchBrowser": true,
+  "launchUrl": "swagger",
+  "applicationUrl": "http://localhost:5294",
+  "environmentVariables": {
+    "ASPNETCORE_ENVIRONMENT": "Development"
+  }
+}
+```
+
+Agora o `dotnet run` abre o navegador direto na documentação. É um detalhe pequeno, e é exatamente o tipo de coisa que decide se quem clonou o seu repositório vê a API funcionando em cinco segundos ou fica achando que quebrou.
+
 ### Roteiro de teste, nesta ordem
 
 **1. `POST /musics`, criando com sucesso**
@@ -2329,6 +2365,19 @@ Copie o `id` da resposta, você vai usar nos próximos passos.
 
 **2. `POST /musics` de novo, com o mesmo título e artista**
 
+Desta vez mande com outra caixa e com espaços sobrando, de propósito:
+
+```json
+{
+  "title": "  bohemian rhapsody ",
+  "artist": "queen",
+  "genre": "Rock",
+  "status": "Favorite",
+  "personalRating": 10,
+  "playCount": 42
+}
+```
+
 Resposta esperada: **400 Bad Request** com
 
 ```json
@@ -2338,7 +2387,7 @@ Resposta esperada: **400 Bad Request** com
 }
 ```
 
-Essa validação não poderia estar no Validator, porque precisou consultar o banco. Por isso mora no Aggregate.
+Duas coisas acontecendo aqui. A primeira: essa validação não poderia estar no Validator, porque precisou consultar o banco. Por isso mora no Aggregate. A segunda: ela reconheceu a duplicata mesmo com a caixa e os espaços diferentes, graças ao `.Trim()` e ao `ILike` do Passo 15. Se a comparação fosse `==`, você teria acabado de criar uma segunda linha para a mesma música.
 
 **3. `POST /musics` com nota inválida**
 
@@ -2361,11 +2410,15 @@ Mesma ideia, mas com o código `E100099`.
 
 **5. `GET /musics`**
 
-Devolve a lista. Em seguida chame `GET /musics?artist=Queen` e veja o `WHERE` aparecendo no console.
+Devolve a lista. Em seguida chame `GET /musics?artist=queen`, tudo em minúsculo, e confirme que a música do Queen volta mesmo assim. No console, o `WHERE` com `ILIKE` aparece no log do EF Core.
 
 **6. `GET /musics/{id}` com um Guid aleatório**
 
 Resposta esperada: **404 Not Found** com `E300101`. Repare que é 404 e não 400: quem decide isso é o Module, olhando o código do erro.
+
+**6b. `GET /musics/abc`, um id que nem é Guid**
+
+Resposta esperada: **404 Not Found**, com o corpo vazio. Aqui o Aggregate nem chegou a ser chamado: a _route constraint_ `{id:guid}` do Passo 16 fez a rota não casar, e a requisição parou no roteamento.
 
 **7. `PUT /musics/{id}`**
 
@@ -2456,10 +2509,11 @@ dotnet ef database update --project src/TuneTrail.Api --startup-project src/Tune
 
 ### O Swagger não abre
 
-Duas causas comuns:
+Três causas comuns:
 
-1. A aplicação não está em ambiente Development, e o `UseSwagger` está dentro do `if (app.Environment.IsDevelopment())`. Os perfis do `launchSettings.json` já definem `ASPNETCORE_ENVIRONMENT=Development`, então isso costuma acontecer só quando você roda a DLL publicada direto.
-2. Você está tentando a porta errada. Confira o `launchSettings.json` e a saída do console.
+1. **Você está em `/`, e não em `/swagger`.** A partir do Passo 18 não existe mais rota na raiz, então `/` responde 404. Confira se o `launchUrl` do Passo 19 está nos dois perfis do `launchSettings.json`.
+2. **A aplicação não está em ambiente Development**, e o `UseSwagger` está dentro do `if (app.Environment.IsDevelopment())`. Os perfis do `launchSettings.json` já definem `ASPNETCORE_ENVIRONMENT=Development`, então isso costuma acontecer só quando você roda a DLL publicada direto.
+3. **Você está tentando a porta errada.** Confira o `launchSettings.json` e a saída do console.
 
 ### Aviso "Failed to determine the https port for redirect"
 
@@ -2544,11 +2598,12 @@ Se você quiser continuar o projeto depois:
 
 1. **Testes.** Crie `tests/TuneTrail.Api.Tests` com xUnit e adicione ao `.slnx`. A pasta `Contract/` foi feita exatamente para isso: você troca o `IMusicAggregate` por um dublê e testa o Module sem banco.
 2. **Paginação** no endpoint de listagem, com `page` e `pageSize`.
-3. **Health check** com `builder.Services.AddHealthChecks().AddNpgSql(...)` e `app.MapHealthChecks("/health")`.
-4. **Uma segunda entidade com relacionamento**, por exemplo `Playlist` contendo várias `Music`. Aqui você exercita `ArtistModule` ou `PlaylistModule` e vê o `RegisterModules()` do Passo 17 pegando o módulo novo sozinho.
-5. **Autenticação JWT**, e aí o `BaseEntity` finalmente ganha um `CreatedBy`.
-6. **Dockerfile da API**, para subir banco e aplicação com um único `docker compose up`.
-7. **README na raiz do repositório**, com a stack, o diagrama de camadas e as instruções de execução. É o que alguém lê primeiro ao abrir o projeto no GitHub.
-8. **Arquivo `.http`** dentro de `src/TuneTrail.Api/`, com as chamadas prontas. O VS Code, com a extensão REST Client, e o Visual Studio executam esse arquivo direto do editor, o que é um bom plano B se o Swagger der problema.
+3. **`CancellationToken` de ponta a ponta.** Receba um `CancellationToken` em cada handler do Module, repasse pelo `IMusicAggregate` e entregue ao `ToListAsync(ct)`, `FirstOrDefaultAsync(ct)` e `SaveChangesAsync(ct)`. Quando o cliente desiste da requisição, a query é cancelada no banco em vez de seguir consumindo conexão. Ficou de fora aqui para não poluir a leitura das camadas, mas em produção é o padrão.
+4. **Health check** com `builder.Services.AddHealthChecks().AddNpgSql(...)` e `app.MapHealthChecks("/health")`.
+5. **Uma segunda entidade com relacionamento**, por exemplo `Playlist` contendo várias `Music`. Aqui você exercita `ArtistModule` ou `PlaylistModule` e vê o `RegisterModules()` do Passo 17 pegando o módulo novo sozinho.
+6. **Autenticação JWT**, e aí o `BaseEntity` finalmente ganha um `CreatedBy`.
+7. **Dockerfile da API**, para subir banco e aplicação com um único `docker compose up`.
+8. **README na raiz do repositório**, com a stack, o diagrama de camadas e as instruções de execução. É o que alguém lê primeiro ao abrir o projeto no GitHub.
+9. **Arquivo `.http`** dentro de `src/TuneTrail.Api/`, com as chamadas prontas. O VS Code, com a extensão REST Client, e o Visual Studio executam esse arquivo direto do editor, o que é um bom plano B se o Swagger der problema.
 
 Bom workshop.

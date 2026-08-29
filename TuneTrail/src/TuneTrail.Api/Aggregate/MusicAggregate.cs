@@ -56,10 +56,10 @@ public class MusicAggregate : IMusicAggregate
             var query = _dbContext.Set<Music>().AsNoTracking().Where(m => !m.Deleted);
 
             if (!string.IsNullOrWhiteSpace(title))
-                query = query.Where(m => m.Title.Contains(title));
+                query = query.Where(m => EF.Functions.ILike(m.Title, $"%{title}%"));
 
             if (!string.IsNullOrWhiteSpace(artist))
-                query = query.Where(m => m.Artist.Contains(artist));
+                query = query.Where(m => EF.Functions.ILike(m.Artist, $"%{artist}%"));
 
             var musics = await query.OrderByDescending(m => m.CreatedAt).ToListAsync();
 
@@ -91,10 +91,15 @@ public class MusicAggregate : IMusicAggregate
             if (errors.Count != 0)
                 return ResultSchema<MusicResponse>.Fail(errors[0]);
 
+            var title = request.Title.Trim();
+            var artist = request.Artist.Trim();
+
             var alreadyExists = await _dbContext
                 .Set<Music>()
                 .AnyAsync(m =>
-                    m.Title == request.Title && m.Artist == request.Artist && !m.Deleted
+                    EF.Functions.ILike(m.Title, title)
+                    && EF.Functions.ILike(m.Artist, artist)
+                    && !m.Deleted
                 );
 
             if (alreadyExists)
@@ -102,7 +107,7 @@ public class MusicAggregate : IMusicAggregate
 
             var music = BuildNewMusic(request);
 
-            await _dbContext.AddAsync(music);
+            _dbContext.Add(music);
             await _dbContext.SaveChangesAsync();
 
             var response = MusicResponseMapping.MapToResponse(music);
@@ -114,7 +119,7 @@ public class MusicAggregate : IMusicAggregate
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating music. Title: {Title}", request.Title);
-            return ResultSchema<MusicResponse>.Fail(ResultError.ErrorOnCreatingMusic(ex.Message));
+            return ResultSchema<MusicResponse>.Fail(ResultError.ErrorOnCreatingMusic);
         }
     }
 
@@ -135,7 +140,6 @@ public class MusicAggregate : IMusicAggregate
 
             UpdateMusicData(music, request);
 
-            _dbContext.Update(music);
             await _dbContext.SaveChangesAsync();
 
             var response = MusicResponseMapping.MapToResponse(music);
@@ -147,7 +151,7 @@ public class MusicAggregate : IMusicAggregate
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating music. Id: {MusicId}", musicId);
-            return ResultSchema<MusicResponse>.Fail(ResultError.ErrorOnUpdatingMusic(ex.Message));
+            return ResultSchema<MusicResponse>.Fail(ResultError.ErrorOnUpdatingMusic);
         }
     }
 
@@ -164,7 +168,6 @@ public class MusicAggregate : IMusicAggregate
 
             music.Deleted = true;
 
-            _dbContext.Update(music);
             await _dbContext.SaveChangesAsync();
 
             return ResultSchema.Success();
@@ -172,7 +175,7 @@ public class MusicAggregate : IMusicAggregate
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting music. Id: {MusicId}", musicId);
-            return ResultSchema.Fail(ResultError.ErrorOnDeletingMusic(ex.Message));
+            return ResultSchema.Fail(ResultError.ErrorOnDeletingMusic);
         }
     }
 

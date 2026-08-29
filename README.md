@@ -84,7 +84,7 @@ O projeto pode ser usado como **ponto de partida para novas APIs em .NET**, como
 ## ✨ Funcionalidades Principais
 
 - 🎧 **CRUD completo de músicas:** criação, consulta individual, listagem, atualização e remoção de registros do diário de escuta.
-- 🔎 **Listagem com filtros:** busca por trecho do título e do artista via query string, combináveis entre si.
+- 🔎 **Listagem com filtros:** busca por trecho do título e do artista via query string, combináveis entre si e insensíveis a maiúsculas e minúsculas, via `ILIKE` do PostgreSQL.
 - 🏷️ **Domínio tipado por enums:** gênero musical (`Rock`, `Pop`, `HipHop`, `Electronic`, `Jazz`, `Classical`, `Mpb`, `Metal`, `Other`) e status de escuta (`WantToListen`, `Listening`, `Favorite`, `Archived`), serializados como texto no JSON.
 - ✅ **Validação em duas camadas:** limites de campo no Validator, e regras que dependem do banco, como música duplicada, no Aggregate.
 - 🧾 **Result Pattern:** sucesso e falha trafegam como retorno, com um catálogo de erros codificados que o Module traduz em `200`, `201`, `204`, `400` ou `404`.
@@ -171,7 +171,7 @@ HTTP Request
 
 ### Decisões arquiteturais
 
-- **Result Pattern no lugar de exceptions:** `ResultSchema` e `ResultSchema<T>` carregam sucesso ou falha. Exceptions ficam reservadas para o que é realmente excepcional, e são logadas antes de virarem um erro genérico.
+- **Result Pattern no lugar de exceptions:** `ResultSchema` e `ResultSchema<T>` carregam sucesso ou falha. Exceptions ficam reservadas para o que é realmente excepcional, e são logadas com contexto antes de virarem um erro genérico. O texto da exception fica no log; a resposta HTTP recebe apenas o código e uma mensagem estável, para não vazar detalhe de schema ou de infraestrutura.
 - **Catálogo de erros codificado:** cada erro tem um código no padrão `E + operação + módulo + id`, por exemplo `E300101` para "Get / Music / primeiro erro". É o código, e não o texto da mensagem, que o Module inspeciona para decidir entre `400` e `404`.
 - **Registro de modules por reflection:** `MinimalExtensions.RegisterModules` varre o assembly em busca de implementações de `IRegisterModule` e as registra. Um recurso novo não exige alterar o `Program.cs`.
 - **Validação em dois níveis:** `MusicRequestValidator` cuida de obrigatoriedade e limites; a checagem de música duplicada mora no Aggregate, porque depende de uma consulta ao banco.
@@ -321,6 +321,8 @@ Todos os endpoints ficam sob o grupo `/musics` e aparecem no Swagger sob a tag *
 | `PUT`    | `/musics/{id}` | Atualiza um registro existente                              | `200`, `400`, `404` |
 | `DELETE` | `/musics/{id}` | Remove o registro por soft delete                           | `204`, `400`, `404` |
 
+As rotas com `{id}` usam a _route constraint_ `{id:guid}`. Um identificador que não seja um Guid válido não chega ao handler: a rota não casa e a resposta é `404`.
+
 **Corpo da requisição, para `POST` e `PUT`:**
 
 ```json
@@ -345,7 +347,7 @@ Todos os endpoints ficam sob o grupo `/musics` e aparecem no Swagger sob a tag *
 
 ### Catálogo de erros
 
-O corpo de erro segue sempre o mesmo formato, com `code` e `message`:
+O corpo de erro segue sempre o mesmo formato, com `code` e `message`. As mensagens são estáveis e nunca carregam texto de exception: o detalhe técnico vai para o log da aplicação, não para a resposta HTTP.
 
 ```json
 {

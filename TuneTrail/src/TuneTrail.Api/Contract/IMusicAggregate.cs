@@ -14,7 +14,7 @@ public interface IMusicAggregate
     );
 
     Task<ResultSchema<MusicResponse>> CreateMusic(MusicRequest request);
-    
+
     Task<ResultSchema<MusicResponse>> UpdateMusic(Guid musicId, MusicRequest request);
 
     Task<ResultSchema> DeleteMusic(Guid musicId);
