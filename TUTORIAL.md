@@ -1,6 +1,6 @@
 # TuneTrail API: construindo uma Minimal API .NET do zero
 
-Tutorial completo de introdução a **Minimal API** com **.NET 9**, **Entity Framework Core**, **PostgreSQL** e **Docker**.
+Tutorial completo de introdução a **Minimal API** com **.NET 10**, **Entity Framework Core**, **PostgreSQL** e **Docker**.
 
 Ao final você terá uma API REST funcional, organizada em camadas, documentada no Swagger e conectada a um banco PostgreSQL rodando em container.
 
@@ -47,11 +47,10 @@ Este documento é autocontido: se você não assistiu à palestra, consegue segu
 | Ferramenta             | Como verificar                       |
 | ---------------------- | ------------------------------------ |
 | SDK do .NET 10         | `dotnet --list-sdks`                 |
-| Runtime do .NET 9      | `dotnet --list-runtimes`             |
 | Docker Desktop rodando | `docker --version` e `docker ps`     |
 | CLI do EF Core         | `dotnet ef --version`                |
 
-O `global.json` trava o **SDK do .NET 10** para compilar, mas o projeto tem como alvo o `net9.0`, então o **runtime do .NET 9** também precisa estar instalado para a aplicação rodar.
+O `global.json` trava o **SDK do .NET 10** com `rollForward: latestFeature`, e o projeto tem como alvo o `net10.0`. Instalando o SDK do .NET 10 você já tem tudo o que é necessário para compilar e executar.
 
 Se o `dotnet ef` não estiver instalado:
 
@@ -444,21 +443,21 @@ Abra o arquivo e deixe assim. As versões dos pacotes já foram preenchidas pelo
 ```xml
 <Project Sdk="Microsoft.NET.Sdk.Web">
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <RootNamespace>TuneTrail.Api</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.19">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.19">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.11">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
     </ItemGroup>
 </Project>
 ```
@@ -2172,7 +2171,7 @@ Agora sim, a versão completa.
 ```csharp
 using System.Reflection;
 using System.Text.Json.Serialization;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using TuneTrail.Api.IoC.Configs;
 using TuneTrail.Api.IoC.Extensions;
 
@@ -2527,7 +2526,7 @@ dotnet run --project src/TuneTrail.Api --launch-profile https
 
 ### As descrições dos endpoints não aparecem no Swagger
 
-Falta o `GenerateDocumentationFile` no `Directory.Build.props`, ou o arquivo XML não foi encontrado. Confira se existe `src/TuneTrail.Api/bin/Debug/net9.0/TuneTrail.Api.xml` depois do build.
+Falta o `GenerateDocumentationFile` no `Directory.Build.props`, ou o arquivo XML não foi encontrado. Confira se existe `src/TuneTrail.Api/bin/Debug/net10.0/TuneTrail.Api.xml` depois do build.
 
 ### Preciso recomeçar o banco do zero
 

@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using TuneTrail.Api.IoC.Configs;
 using TuneTrail.Api.IoC.Extensions;
 
